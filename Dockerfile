@@ -31,18 +31,18 @@ RUN wget -O - http://www-us.apache.org/dist/spark/spark-2.2.1/spark-2.2.1-bin-ha
 RUN mv /spark* /spark
 
 #ElasticSearch
-RUN wget -O - https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-5.5.2.tar.gz | tar zx
-RUN mv /elasticsearch* /elasticsearch
+#RUN wget -O - https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-5.5.2.tar.gz | tar zx
+#RUN mv /elasticsearch* /elasticsearch
 
 #HBase
-RUN wget -O - http://www-us.apache.org/dist/hbase/1.2.6/hbase-1.2.6-bin.tar.gz | tar zx
-RUN mv /hbase* /hbase
-RUN echo "export JAVA_HOME=/usr/lib/jvm/java-8-oracle" >> /hbase/conf/hbase-env.sh 
+#RUN wget -O - http://www-us.apache.org/dist/hbase/1.2.6/hbase-1.2.6-bin.tar.gz | tar zx
+#RUN mv /hbase* /hbase
+#RUN echo "export JAVA_HOME=/usr/lib/jvm/java-8-oracle" >> /hbase/conf/hbase-env.sh 
 
 #Python SDK
-RUN apt-get install -y python-pip
-RUN pip install pytz
-RUN pip install predictionio
+#RUN apt-get install -y python-pip
+#RUN pip install pytz
+#RUN pip install predictionio
 
 #For Spark MLlib
 RUN apt-get install -y libgfortran3 libatlas3-base libopenblas-base
@@ -52,27 +52,27 @@ RUN apt-get install -y libgfortran3 libatlas3-base libopenblas-base
 RUN wget -O - http://www-us.apache.org/dist/predictionio/0.12.1/apache-predictionio-0.12.1-bin.tar.gz | tar zx
 RUN mv PredictionIO* /PredictionIO
 
-RUN useradd elasticsearch
-RUN chown -R elasticsearch /elasticsearch
+#RUN useradd elasticsearch
+#RUN chown -R elasticsearch /elasticsearch
 
 ENV PIO_HOME /PredictionIO
 ENV PATH $PATH:$PIO_HOME/bin
 
 #Download SBT
-#RUN /PredictionIO/sbt/sbt package 
+RUN /PredictionIO/sbt/sbt package 
 
 #Configuration
-RUN sed -i 's|SPARK_HOME=.*|SPARK_HOME=/spark|' /PredictionIO/conf/pio-env.sh
-RUN sed -i "s|PIO_STORAGE_REPOSITORIES_METADATA_SOURCE=PGSQL|PIO_STORAGE_REPOSITORIES_METADATA_SOURCE=ELASTICSEARCH|" /PredictionIO/conf/pio-env.sh
-RUN sed -i "s|PIO_STORAGE_REPOSITORIES_MODELDATA_SOURCE=PGSQL|PIO_STORAGE_REPOSITORIES_MODELDATA_SOURCE=LOCALFS|" /PredictionIO/conf/pio-env.sh
-RUN sed -i "s|PIO_STORAGE_REPOSITORIES_EVENTDATA_SOURCE=PGSQL|PIO_STORAGE_REPOSITORIES_EVENTDATA_SOURCE=HBASE|" /PredictionIO/conf/pio-env.sh
-RUN sed -i "s|PIO_STORAGE_SOURCES_PGSQL|# PIO_STORAGE_SOURCES_PGSQL|" /PredictionIO/conf/pio-env.sh
-RUN sed -i "s|# PIO_STORAGE_SOURCES_LOCALFS|PIO_STORAGE_SOURCES_LOCALFS|" /PredictionIO/conf/pio-env.sh
-RUN sed -i "s|# PIO_STORAGE_SOURCES_ELASTICSEARCH_TYPE|PIO_STORAGE_SOURCES_ELASTICSEARCH_TYPE|" /PredictionIO/conf/pio-env.sh
-RUN sed -i "s|# PIO_STORAGE_SOURCES_ELASTICSEARCH_HOME=.*|PIO_STORAGE_SOURCES_ELASTICSEARCH_HOME=/elasticsearch|" /PredictionIO/conf/pio-env.sh
-RUN sed -i "s|# PIO_STORAGE_SOURCES_HBASE|PIO_STORAGE_SOURCES_HBASE|" /PredictionIO/conf/pio-env.sh
-RUN sed -i "s|PIO_STORAGE_SOURCES_HBASE_HOME=.*|PIO_STORAGE_SOURCES_HBASE_HOME=/hbase|" /PredictionIO/conf/pio-env.sh
-RUN sed -i "s|# HBASE_CONF_DIR=.*|HBASE_CONF_DIR=/hbase/conf|" /PredictionIO/conf/pio-env.sh
+#RUN sed -i 's|SPARK_HOME=.*|SPARK_HOME=/spark|' /PredictionIO/conf/pio-env.sh
+#RUN sed -i "s|PIO_STORAGE_REPOSITORIES_METADATA_SOURCE=PGSQL|PIO_STORAGE_REPOSITORIES_METADATA_SOURCE=JDBC|" /PredictionIO/conf/pio-env.sh
+#RUN sed -i "s|PIO_STORAGE_REPOSITORIES_MODELDATA_SOURCE=PGSQL|PIO_STORAGE_REPOSITORIES_MODELDATA_SOURCE=JDBC|" /PredictionIO/conf/pio-env.sh
+#RUN sed -i "s|PIO_STORAGE_REPOSITORIES_EVENTDATA_SOURCE=PGSQL|PIO_STORAGE_REPOSITORIES_EVENTDATA_SOURCE=JDBC|" /PredictionIO/conf/pio-env.sh
+#RUN sed -i "s|PIO_STORAGE_SOURCES_PGSQL|# PIO_STORAGE_SOURCES_PGSQL|" /PredictionIO/conf/pio-env.sh
+#RUN sed -i "s|# PIO_STORAGE_SOURCES_LOCALFS|PIO_STORAGE_SOURCES_LOCALFS|" /PredictionIO/conf/pio-env.sh
+#RUN sed -i "s|# PIO_STORAGE_SOURCES_ELASTICSEARCH_TYPE|PIO_STORAGE_SOURCES_ELASTICSEARCH_TYPE|" /PredictionIO/conf/pio-env.sh
+#RUN sed -i "s|# PIO_STORAGE_SOURCES_ELASTICSEARCH_HOME=.*|PIO_STORAGE_SOURCES_ELASTICSEARCH_HOME=/elasticsearch|" /PredictionIO/conf/pio-env.sh
+#RUN sed -i "s|# PIO_STORAGE_SOURCES_HBASE|PIO_STORAGE_SOURCES_HBASE|" /PredictionIO/conf/pio-env.sh
+#RUN sed -i "s|PIO_STORAGE_SOURCES_HBASE_HOME=.*|PIO_STORAGE_SOURCES_HBASE_HOME=/hbase|" /PredictionIO/conf/pio-env.sh
+#RUN sed -i "s|# HBASE_CONF_DIR=.*|HBASE_CONF_DIR=/hbase/conf|" /PredictionIO/conf/pio-env.sh
 
 COPY hbase-site.xml /hbase/conf/
 COPY hbase-env.sh /hbase/conf/
