@@ -58,9 +58,6 @@ RUN mv PredictionIO* /PredictionIO
 ENV PIO_HOME /PredictionIO
 ENV PATH $PATH:$PIO_HOME/bin
 
-# overwrite pio-env
-COPY pio-env.sh $PIO_HOME/conf
-
 #Download SBT
 RUN /PredictionIO/sbt/sbt package 
 
