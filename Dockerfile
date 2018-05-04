@@ -40,9 +40,9 @@ RUN mv /spark* /spark
 #RUN echo "export JAVA_HOME=/usr/lib/jvm/java-8-oracle" >> /hbase/conf/hbase-env.sh 
 
 #Python SDK
-#RUN apt-get install -y python-pip
-#RUN pip install pytz
-#RUN pip install predictionio
+RUN apt-get install -y python-pip
+RUN pip install pytz
+RUN pip install predictionio
 
 #For Spark MLlib
 RUN apt-get install -y libgfortran3 libatlas3-base libopenblas-base
@@ -52,6 +52,10 @@ RUN apt-get install -y libgfortran3 libatlas3-base libopenblas-base
 RUN wget -O - http://www-us.apache.org/dist/predictionio/0.12.1/apache-predictionio-0.12.1-bin.tar.gz | tar zx
 RUN mv PredictionIO* /PredictionIO
 
+RUN wget -O - https://dev.mysql.com/get/Downloads/Connector-J/mysql-connector-java-5.1.46.tar.gz | tar zx
+RUN mv mysql-connector-java-5.1.46/mysql-connector-java-5.1.46.jar PredictionIO/lib/ && \
+    rm -rf mysql-connector-java-5.1.46
+
 #RUN useradd elasticsearch
 #RUN chown -R elasticsearch /elasticsearch
 
@@ -59,7 +63,7 @@ ENV PIO_HOME /PredictionIO
 ENV PATH $PATH:$PIO_HOME/bin
 
 #Download SBT
-#RUN /PredictionIO/sbt/sbt package 
+RUN cd /PredictionIO && sbt/sbt package 
 
 ARG BUILD_INFO
 LABEL BUILD_INFO=$BUILD_INFO
