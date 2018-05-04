@@ -59,7 +59,7 @@ ENV PIO_HOME /PredictionIO
 ENV PATH $PATH:$PIO_HOME/bin
 
 #Download SBT
-RUN /PredictionIO/sbt/sbt package 
+#RUN /PredictionIO/sbt/sbt package 
 
 ARG BUILD_INFO
 LABEL BUILD_INFO=$BUILD_INFO
