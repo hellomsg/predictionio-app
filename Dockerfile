@@ -4,7 +4,7 @@ COPY app/cf/conf/* /PredictionIO/conf/
 
 ENV WORKDIR "/ebsa/app/cf/"
 
-COPY app/cf/* ${WORKDIR}
+COPY app/cf ${WORKDIR}
 
 WORKDIR "${WORKDIR}"
 
