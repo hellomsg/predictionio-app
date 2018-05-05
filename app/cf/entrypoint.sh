@@ -13,6 +13,7 @@ case $1 in
         pio eventserver 
         ;;
     "query")
+        pio build
         pio train
         pio deploy
         ;;
