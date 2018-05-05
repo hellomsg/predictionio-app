@@ -8,6 +8,6 @@ COPY app/cf ${WORKDIR}
 
 WORKDIR "${WORKDIR}"
 
-#RUN pio build --verbose
+RUN pio build --verbose
 
 ENTRYPOINT ["./entrypoint.sh"]

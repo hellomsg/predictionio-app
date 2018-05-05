@@ -13,7 +13,7 @@ case $1 in
         pio eventserver 
         ;;
     "query")
-        pio build --verbose
+        #pio build --verbose
         pio train
         pio deploy
         ;;
