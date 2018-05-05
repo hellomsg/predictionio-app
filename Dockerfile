@@ -2,9 +2,9 @@ FROM registry.cn-hangzhou.aliyuncs.com/flipboardchina/predictionio
 
 COPY app/cf/conf/* /PredictionIO/conf/
 
-ENV WORKDIR "/ebsa/app/cf"
+ENV WORKDIR "/ebsa/app/cf/"
 
-ADD app/cf/* ${WORKDIR}
+COPY app/cf/* ${WORKDIR}
 
 WORKDIR "${WORKDIR}"
 
