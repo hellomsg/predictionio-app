@@ -1,4 +1,4 @@
-FROM ubuntu:16.04 as base
+FROM registry.cn-hangzhou.aliyuncs.com/flipboardchina/predictionio
 
 COPY app/cf/conf/* /PredictionIO/conf/
 
