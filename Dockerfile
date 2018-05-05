@@ -10,4 +10,4 @@ WORKDIR "${WORKDIR}"
 
 #RUN pio build --verbose
 
-ENTRYPOINT ["entrypoint.sh"]
+ENTRYPOINT ["./entrypoint.sh"]
