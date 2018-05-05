@@ -9,10 +9,11 @@ echo "input:"$1
 
 case $1 in
     "train")
-        pio app new cf
+        #pio app new cf
         pio eventserver 
         ;;
     "query")
+        pio train
         pio deploy
         ;;
 esac
