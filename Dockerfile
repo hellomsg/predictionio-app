@@ -8,5 +8,6 @@ ADD app/cf/* ${WORKDIR}
 
 WORKDIR "${WORKDIR}"
 
-RUN pio eventserver &
+RUN pio build --verbose
 
+ENTRYPOINT ["entrypoint.sh"]

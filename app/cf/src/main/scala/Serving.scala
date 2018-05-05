@@ -1,4 +1,4 @@
-package org.example.similarproduct
+package org.example.recommendation
 
 import org.apache.predictionio.controller.LServing
 

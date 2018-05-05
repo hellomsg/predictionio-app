@@ -1,16 +1,16 @@
-package org.example.similarproduct
+package org.example.recommendation
 
-import org.apache.predictionio.controller.P2LAlgorithm
+import org.apache.predictionio.controller.PAlgorithm
 import org.apache.predictionio.controller.Params
 import org.apache.predictionio.data.storage.BiMap
 
 import org.apache.spark.SparkContext
+import org.apache.spark.rdd.RDD
 import org.apache.spark.mllib.recommendation.ALS
 import org.apache.spark.mllib.recommendation.{Rating => MLlibRating}
+import org.apache.spark.mllib.recommendation.ALSModel
 
 import grizzled.slf4j.Logger
-
-import scala.collection.mutable.PriorityQueue
 
 case class ALSAlgorithmParams(
   rank: Int,
@@ -18,228 +18,120 @@ case class ALSAlgorithmParams(
   lambda: Double,
   seed: Option[Long]) extends Params
 
-class ALSModel(
-  val productFeatures: Map[Int, Array[Double]],
-  val itemStringIntMap: BiMap[String, Int],
-  val items: Map[Int, Item]
-) extends Serializable {
-
-  @transient lazy val itemIntStringMap = itemStringIntMap.inverse
-
-  override def toString = {
-    s" productFeatures: [${productFeatures.size}]" +
-    s"(${productFeatures.take(2).toList}...)" +
-    s" itemStringIntMap: [${itemStringIntMap.size}]" +
-    s"(${itemStringIntMap.take(2).toString}...)]" +
-    s" items: [${items.size}]" +
-    s"(${items.take(2).toString}...)]"
-  }
-}
-
-/**
-  * Use ALS to build item x feature matrix
-  */
 class ALSAlgorithm(val ap: ALSAlgorithmParams)
-  extends P2LAlgorithm[PreparedData, ALSModel, Query, PredictedResult] {
+  extends PAlgorithm[PreparedData, ALSModel, Query, PredictedResult] {
 
   @transient lazy val logger = Logger[this.type]
 
+  if (ap.numIterations > 30) {
+    logger.warn(
+      s"ALSAlgorithmParams.numIterations > 30, current: ${ap.numIterations}. " +
+      s"There is a chance of running to StackOverflowException." +
+      s"To remedy it, set lower numIterations or checkpoint parameters.")
+  }
+
   def train(sc: SparkContext, data: PreparedData): ALSModel = {
-    require(!data.viewEvents.take(1).isEmpty,
-      s"viewEvents in PreparedData cannot be empty." +
-      " Please check if DataSource generates TrainingData" +
-      " and Preprator generates PreparedData correctly.")
-    require(!data.users.take(1).isEmpty,
-      s"users in PreparedData cannot be empty." +
-      " Please check if DataSource generates TrainingData" +
-      " and Preprator generates PreparedData correctly.")
-    require(!data.items.take(1).isEmpty,
-      s"items in PreparedData cannot be empty." +
-      " Please check if DataSource generates TrainingData" +
-      " and Preprator generates PreparedData correctly.")
-    // create User and item's String ID to integer index BiMap
-    val userStringIntMap = BiMap.stringInt(data.users.keys)
-    val itemStringIntMap = BiMap.stringInt(data.items.keys)
-
-    // collect Item as Map and convert ID to Int index
-    val items: Map[Int, Item] = data.items.map { case (id, item) =>
-      (itemStringIntMap(id), item)
-    }.collectAsMap.toMap
-
-    val mllibRatings = data.viewEvents
-      .map { r =>
-        // Convert user and item String IDs to Int index for MLlib
-        val uindex = userStringIntMap.getOrElse(r.user, -1)
-        val iindex = itemStringIntMap.getOrElse(r.item, -1)
-
-        if (uindex == -1)
-          logger.info(s"Couldn't convert nonexistent user ID ${r.user}"
-            + " to Int index.")
-
-        if (iindex == -1)
-          logger.info(s"Couldn't convert nonexistent item ID ${r.item}"
-            + " to Int index.")
-
-        ((uindex, iindex), 1)
-      }.filter { case ((u, i), v) =>
-        // keep events with valid user and item index
-        (u != -1) && (i != -1)
-      }.reduceByKey(_ + _) // aggregate all view events of same user-item pair
-      .map { case ((u, i), v) =>
-        // MLlibRating requires integer index for user and item
-        MLlibRating(u, i, v)
-      }
-      .cache()
-
     // MLLib ALS cannot handle empty training data.
-    require(!mllibRatings.take(1).isEmpty,
-      s"mllibRatings cannot be empty." +
-      " Please check if your events contain valid user and item ID.")
+    require(!data.ratings.take(1).isEmpty,
+      s"RDD[Rating] in PreparedData cannot be empty." +
+      " Please check if DataSource generates TrainingData" +
+      " and Preparator generates PreparedData correctly.")
+    // Convert user and item String IDs to Int index for MLlib
+
+    val userStringIntMap = BiMap.stringInt(data.ratings.map(_.user))
+    val itemStringIntMap = BiMap.stringInt(data.ratings.map(_.item))
+    val mllibRatings = data.ratings.map( r =>
+      // MLlibRating requires integer index for user and item
+      MLlibRating(userStringIntMap(r.user), itemStringIntMap(r.item), r.rating)
+    )
 
     // seed for MLlib ALS
     val seed = ap.seed.getOrElse(System.nanoTime)
 
-    val m = ALS.trainImplicit(
-      ratings = mllibRatings,
-      rank = ap.rank,
-      iterations = ap.numIterations,
-      lambda = ap.lambda,
-      blocks = -1,
-      alpha = 1.0,
-      seed = seed)
+    // Set checkpoint directory
+    // sc.setCheckpointDir("checkpoint")
+
+    // If you only have one type of implicit event (Eg. "view" event only),
+    // set implicitPrefs to true
+    val implicitPrefs = false
+    val als = new ALS()
+    als.setUserBlocks(-1)
+    als.setProductBlocks(-1)
+    als.setRank(ap.rank)
+    als.setIterations(ap.numIterations)
+    als.setLambda(ap.lambda)
+    als.setImplicitPrefs(implicitPrefs)
+    als.setAlpha(1.0)
+    als.setSeed(seed)
+    als.setCheckpointInterval(10)
+    val m = als.run(mllibRatings)
 
     new ALSModel(
-      productFeatures = m.productFeatures.collectAsMap.toMap,
-      itemStringIntMap = itemStringIntMap,
-      items = items
-    )
+      rank = m.rank,
+      userFeatures = m.userFeatures,
+      productFeatures = m.productFeatures,
+      userStringIntMap = userStringIntMap,
+      itemStringIntMap = itemStringIntMap)
   }
 
   def predict(model: ALSModel, query: Query): PredictedResult = {
-
-    val productFeatures = model.productFeatures
-
-    // convert items to Int index
-    val queryList: Set[Int] = query.items.map(model.itemStringIntMap.get(_))
-      .flatten.toSet
-
-    val queryFeatures: Vector[Array[Double]] = queryList.toVector
-      // productFeatures may not contain the requested item
-      .map { item => productFeatures.get(item) }
-      .flatten
-
-    val whiteList: Option[Set[Int]] = query.whiteList.map( set =>
-      set.map(model.itemStringIntMap.get(_)).flatten
-    )
-    val blackList: Option[Set[Int]] = query.blackList.map ( set =>
-      set.map(model.itemStringIntMap.get(_)).flatten
-    )
-
-    val ord = Ordering.by[(Int, Double), Double](_._2).reverse
-
-    val indexScores: Array[(Int, Double)] = if (queryFeatures.isEmpty) {
-      logger.info(s"No productFeatures vector for query items ${query.items}.")
-      Array[(Int, Double)]()
-    } else {
-      productFeatures.par // convert to parallel collection
-        .mapValues { f =>
-          queryFeatures.map{ qf =>
-            cosine(qf, f)
-          }.reduce(_ + _)
-        }
-        .filter(_._2 > 0) // keep items with score > 0
-        .seq // convert back to sequential collection
-        .toArray
+    // Convert String ID to Int index for Mllib
+    model.userStringIntMap.get(query.user).map { userInt =>
+      // create inverse view of itemStringIntMap
+      val itemIntStringMap = model.itemStringIntMap.inverse
+      // recommendProducts() returns Array[MLlibRating], which uses item Int
+      // index. Convert it to String ID for returning PredictedResult
+      val itemScores = model.recommendProducts(userInt, query.num)
+        .map (r => ItemScore(itemIntStringMap(r.product), r.rating))
+      PredictedResult(itemScores)
+    }.getOrElse{
+      logger.info(s"No prediction for unknown user ${query.user}.")
+      PredictedResult(Array.empty)
     }
-
-    val filteredScore = indexScores.view.filter { case (i, v) =>
-      isCandidateItem(
-        i = i,
-        items = model.items,
-        categories = query.categories,
-        categoryBlackList = query.categoryBlackList,
-        queryList = queryList,
-        whiteList = whiteList,
-        blackList = blackList
-      )
-    }
-
-    val topScores = getTopN(filteredScore, query.num)(ord).toArray
-
-    val itemScores = topScores.map { case (i, s) =>
-      ItemScore(
-        item = model.itemIntStringMap(i),
-        score = s
-      )
-    }
-
-    PredictedResult(itemScores)
   }
 
-  private
-  def getTopN[T](s: Seq[T], n: Int)(implicit ord: Ordering[T]): Seq[T] = {
+  // This function is used by the evaluation module, where a batch of queries is sent to this engine
+  // for evaluation purpose.
+  override def batchPredict(model: ALSModel, queries: RDD[(Long, Query)]): RDD[(Long, PredictedResult)] = {
+    val userIxQueries: RDD[(Int, (Long, Query))] = queries
+    .map { case (ix, query) => {
+      // If user not found, then the index is -1
+      val userIx = model.userStringIntMap.get(query.user).getOrElse(-1)
+      (userIx, (ix, query))
+    }}
 
-    val q = PriorityQueue()
+    // Cross product of all valid users from the queries and products in the model.
+    val usersProducts: RDD[(Int, Int)] = userIxQueries
+      .keys
+      .filter(_ != -1)
+      .cartesian(model.productFeatures.map(_._1))
 
-    for (x <- s) {
-      if (q.size < n)
-        q.enqueue(x)
-      else {
-        // q is full
-        if (ord.compare(x, q.head) < 0) {
-          q.dequeue()
-          q.enqueue(x)
-        }
+    // Call mllib ALS's predict function.
+    val ratings: RDD[MLlibRating] = model.predict(usersProducts)
+
+    // The following code construct predicted results from mllib's ratings.
+    // Not optimal implementation. Instead of groupBy, should use combineByKey with a PriorityQueue
+    val userRatings: RDD[(Int, Iterable[MLlibRating])] = ratings.groupBy(_.user)
+
+    userIxQueries.leftOuterJoin(userRatings)
+    .map {
+      // When there are ratings
+      case (userIx, ((ix, query), Some(ratings))) => {
+        val topItemScores: Array[ItemScore] = ratings
+        .toArray
+        .sortBy(_.rating)(Ordering.Double.reverse) // note: from large to small ordering
+        .take(query.num)
+        .map { rating => ItemScore(
+          model.itemStringIntMap.inverse(rating.product),
+          rating.rating) }
+
+        (ix, PredictedResult(itemScores = topItemScores))
+      }
+      // When user doesn't exist in training data
+      case (userIx, ((ix, query), None)) => {
+        require(userIx == -1)
+        (ix, PredictedResult(itemScores = Array.empty))
       }
     }
-
-    q.dequeueAll.toSeq.reverse
   }
-
-  private
-  def cosine(v1: Array[Double], v2: Array[Double]): Double = {
-    val size = v1.size
-    var i = 0
-    var n1: Double = 0
-    var n2: Double = 0
-    var d: Double = 0
-    while (i < size) {
-      n1 += v1(i) * v1(i)
-      n2 += v2(i) * v2(i)
-      d += v1(i) * v2(i)
-      i += 1
-    }
-    val n1n2 = (math.sqrt(n1) * math.sqrt(n2))
-    if (n1n2 == 0) 0 else (d / n1n2)
-  }
-
-  private
-  def isCandidateItem(
-    i: Int,
-    items: Map[Int, Item],
-    categories: Option[Set[String]],
-    categoryBlackList: Option[Set[String]],
-    queryList: Set[Int],
-    whiteList: Option[Set[Int]],
-    blackList: Option[Set[Int]]
-  ): Boolean = {
-    whiteList.map(_.contains(i)).getOrElse(true) &&
-    blackList.map(!_.contains(i)).getOrElse(true) &&
-    // discard items in query as well
-    (!queryList.contains(i)) &&
-    // filter categories
-    categories.map { cat =>
-      items(i).categories.map { itemCat =>
-        // keep this item if has ovelap categories with the query
-        !(itemCat.toSet.intersect(cat).isEmpty)
-      }.getOrElse(false) // discard this item if it has no categories
-    }.getOrElse(true) &&
-    categoryBlackList.map { cat =>
-      items(i).categories.map { itemCat =>
-        // discard this item if has ovelap categories with the query
-        (itemCat.toSet.intersect(cat).isEmpty)
-      }.getOrElse(true) // keep this item if it has no categories
-    }.getOrElse(true)
-  }
-
 }

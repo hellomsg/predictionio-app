@@ -1,36 +1,32 @@
-package org.example.similarproduct
+package org.example.recommendation
 
 import org.apache.predictionio.controller.EngineFactory
 import org.apache.predictionio.controller.Engine
 
 case class Query(
-  items: List[String],
-  num: Int,
-  categories: Option[Set[String]],
-  categoryBlackList: Option[Set[String]],
-  whiteList: Option[Set[String]],
-  blackList: Option[Set[String]]
+  user: String,
+  num: Int
 )
 
 case class PredictedResult(
   itemScores: Array[ItemScore]
-){
-  override def toString: String = itemScores.mkString(",")
-}
+)
+
+case class ActualResult(
+  ratings: Array[Rating]
+)
 
 case class ItemScore(
   item: String,
   score: Double
 )
 
-object SimilarProductEngine extends EngineFactory {
+object RecommendationEngine extends EngineFactory {
   def apply() = {
     new Engine(
       classOf[DataSource],
       classOf[Preparator],
-      Map(
-        "als" -> classOf[ALSAlgorithm],
-        "cooccurrence" -> classOf[CooccurrenceAlgorithm]),
+      Map("als" -> classOf[ALSAlgorithm]),
       classOf[Serving])
   }
 }
