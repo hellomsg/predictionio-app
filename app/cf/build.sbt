@@ -1,5 +1,5 @@
 name := "template-scala-parallel-recommendation"
-
+ivyLoggingLevel := UpdateLogging.Quiet
 scalaVersion := "2.11.8"
 libraryDependencies ++= Seq(
   "org.apache.predictionio" %% "apache-predictionio-core" % "0.12.0-incubating" % "provided",
